@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Smart App v27 - Zero Line Fix</title>
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+    <style>
+        :root {
+            --primary-gradient: linear-gradient(90deg, #1a73e8, #9333ea);
+            --bg-default: #f8fafc;
+            --overlay: rgba(0,0,0,0.9);
+            --shimmer: conic-gradient(transparent, rgba(26,115,232,0.5), transparent 30%, #fff 50%, transparent 70%, rgba(26,115,232,0.5), transparent);
+        }
+
+        body, html { 
+            margin: 0; padding: 0; width: 100%; height: 100%; 
+            font-family: 'Segoe UI', sans-serif; 
+            background: var(--bg-default); 
+            overflow: hidden;
+            transition: background-color 0.4s ease;
+        }
+        
+        .top-bar {
+            display: flex; justify-content: center; align-items: center;
+            padding: 15px 20px; background: #fff; position: fixed; top: 0; left: 0;
+            width: 100%; box-sizing: border-box; z-index: 10000; 
+            border: none;
+            box-shadow: none;
+            transition: background-color 0.4s ease;
+        }
+
+        #appTitleDisplay { 
+            font-size: 18px; font-weight: 800; margin: 0; 
+            background: var(--primary-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        /* Activation Section */
+        #activationNotice {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            height: 100vh; padding: 20px; box-sizing: border-box;
+        }
+        .premium-card-container { position: relative; width: 100%; max-width: 340px; border-radius: 20px; overflow: hidden; }
+        .premium-card-container::before {
+            content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%;
+            background: var(--shimmer); animation: rotate 4s linear infinite; z-index: -1;
+        }
+        @keyframes rotate { 100% { transform: rotate(1turn); } }
+        .premium-card { background: white; border-radius: 17px; margin: 3px; padding: 25px; text-align: left; position: relative; }
+        .monogram { width: 45px; height: 45px; border-radius: 50%; background: #1a73e8; color: white; display: flex; justify-content: center; align-items: center; font-size: 20px; font-weight: bold; margin: 0 auto 15px auto; border: 2px solid #fff; }
+        .info-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; font-size: 13px; font-weight: 500; color: #333; }
+        .info-row svg { width: 16px; fill: #1a73e8; flex-shrink: 0; }
+        .whatsapp-btn { background: #25D366; color: white; padding: 12px; border-radius: 10px; text-decoration: none; font-weight: bold; display: flex; justify-content: center; align-items: center; gap: 8px; margin-top: 10px; font-size: 14px; }
+
+        /* Popups */
+        .popup-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--overlay); z-index: 20000; justify-content: center; align-items: center; backdrop-filter: blur(8px); }
+        .popup { background: white; padding: 25px; border-radius: 20px; width: 270px; text-align: center; border: 1px solid rgba(255,255,255,0.1); }
+        .popup input { width: 100%; padding: 12px; margin-bottom: 15px; border-radius: 12px; border: 1px solid #ddd; outline: none; text-align: center; }
+        .btn-blue { background: #1a73e8; color: white; width: 100%; padding: 12px; border-radius: 10px; border: none; font-weight: bold; cursor: pointer; margin-bottom: 8px; }
+        .btn-gray { background: #f1f5f9; color: #333; width: 100%; padding: 10px; border-radius: 10px; border: none; cursor: pointer; }
+
+        /* The Isolated Frame */
+        #liveContentFrame {
+            width: 100%; 
+            height: calc(100vh - 54px); /* Adjusted to match top-bar exactly */
+            border: none; 
+            margin-top: 54px;
+            display: none;
+            background: transparent;
+        }
+    </style>
+
+    <script>
+        const firebaseConfig = { apiKey: "AIzaSyDJt_xJEwsj9jIXOiykRD21NqvejKQm2mU", databaseURL: "https://abdul-1st-project.firebaseio.com", projectId: "abdul-1st-project" };
+        firebase.initializeApp(firebaseConfig); const db = firebase.database();
+
+        function handleTitleClick() {
+            const isActivated = localStorage.getItem('appActivated') === 'true';
+            document.getElementById(isActivated ? 'settingsPopup' : 'activationPopup').style.display = 'flex';
+        }
+
+        function closePopup(id) { document.getElementById(id).style.display = 'none'; }
+
+        function checkActivationCode() {
+            var c = document.getElementById('codeInput').value.trim();
+            if(!c) return;
+            db.ref('admin/codes/' + c).once('value', function(s) {
+                var d = s.val();
+                if(!d) alert("Wrong Code!");
+                else if(d.status === 'used') alert("Already used!");
+                else if(d.status === 'active') {
+                    db.ref('admin/codes/' + c + '/status').set('used').then(() => {
+                        db.ref('userData/' + d.syncKey).once('value', function(contentSnap) {
+                            localStorage.setItem('appActivated', 'true');
+                            localStorage.setItem('syncKey', d.syncKey);
+                            localStorage.setItem('appTitle', d.appTitle);
+                            if(contentSnap.val()) localStorage.setItem('cachedBody', contentSnap.val());
+                            location.reload();
+                        });
+                    });
+                }
+            });
+        }
+
+        function syncData() {
+            var sk = localStorage.getItem('syncKey'); if(!sk) return;
+            db.ref('admin/commands/' + sk).once('value', function(cmd) {
+                if(cmd.val() === 'clear') {
+                    db.ref('admin/commands/' + sk).set(null).then(() => {
+                        localStorage.clear(); location.reload();
+                    });
+                } else {
+                    db.ref('userData/' + sk).once('value', function(s) {
+                        if (s.val()) {
+                            localStorage.setItem('cachedBody', s.val());
+                            loadInFrame(s.val());
+                            closePopup('settingsPopup');
+                        }
+                    });
+                }
+            });
+        }
+
+        function loadInFrame(html) {
+            const frame = document.getElementById('liveContentFrame');
+            frame.style.display = 'block';
+            frame.srcdoc = html;
+
+            frame.onload = function() {
+                try {
+                    const frameDoc = frame.contentDocument || frame.contentWindow.document;
+                    const frameBody = frameDoc.body;
+                    
+                    let bgColor = window.getComputedStyle(frameBody).backgroundColor;
+                    
+                    // Fallback to div color if body is clear
+                    if (bgColor === 'rgba(0, 0, 0, 0)' || bgColor === 'transparent') {
+                        const firstDiv = frameBody.querySelector('div');
+                        if (firstDiv) bgColor = window.getComputedStyle(firstDiv).backgroundColor;
+                    }
+
+                    if (bgColor && bgColor !== 'rgba(0, 0, 0, 0)') {
+                        // SYNC THE WHOLE PAGE
+                        document.body.style.backgroundColor = bgColor;
+                        const topBar = document.querySelector('.top-bar');
+                        topBar.style.backgroundColor = bgColor;
+                        
+                        // Handle Contrast
+                        const rgb = bgColor.match(/\d+/g);
+                        if (rgb) {
+                            const brightness = (rgb[0] * 299 + rgb[1] * 587 + rgb[2] * 114) / 1000;
+                            const title = document.getElementById('appTitleDisplay');
+                            if (brightness < 125) {
+                                title.style.webkitTextFillColor = '#c5a059'; // Gold for dark
+                            } else {
+                                title.style.webkitTextFillColor = 'transparent'; // Gradient for light
+                            }
+                        }
+                    }
+                } catch (e) { console.log(e); }
+            };
+        }
+
+        window.onload = function() {
+            if (localStorage.getItem('appActivated') === 'true') {
+                document.getElementById('activationNotice').style.display = 'none';
+                const cached = localStorage.getItem('cachedBody');
+                if (cached) loadInFrame(cached);
+                if (localStorage.getItem('appTitle')) document.getElementById('appTitleDisplay').innerText = localStorage.getItem('appTitle');
+            } else {
+                document.getElementById('activationNotice').style.display = 'flex';
+                document.getElementById('appTitleDisplay').innerText = "Activation Required";
+            }
+        };
+        window.onclick = function(event) { if (event.target.className === 'popup-overlay') { event.target.style.display = 'none'; } }
+    </script>
+</head>
+<body>
+    <div class="top-bar">
+        <h2 id="appTitleDisplay" onclick="handleTitleClick()">Smart App</h2>
+    </div>
+
+    <div id="activationNotice">
+        <div class="premium-card-container">
+            <div class="premium-card">
+                <div class="monogram">AS</div>
+                <p style="text-align:center; font-weight:800; margin-bottom:15px; color:#333;">Abdul Samad</p>
+                <div class="info-row"><svg viewBox="0 0 24 24"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.24.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg><span>03458171152</span></div>
+                <div class="info-row"><svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg><span>Ali Ahmad Center, Bahawalpur</span></div>
+                <a href="https://wa.me/923458171152" class="whatsapp-btn">WhatsApp Support</a>
+            </div>
+        </div>
+    </div>
+
+    <div id="activationPopup" class="popup-overlay"><div class="popup"><h3>Activate App</h3><input type="text" id="codeInput" placeholder="Code"><button class="btn-blue" onclick="checkActivationCode()">Activate</button><button class="btn-gray" onclick="closePopup('activationPopup')">Cancel</button></div></div>
+    <div id="settingsPopup" class="popup-overlay"><div class="popup"><h3>Settings</h3><button class="btn-blue" style="background:#34a853;" onclick="syncData()">Update Content</button><button class="btn-gray" onclick="closePopup('settingsPopup')">Close</button></div></div>
+
+    <iframe id="liveContentFrame"></iframe>
+</body>
+</html>
