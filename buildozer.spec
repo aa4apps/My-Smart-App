@@ -16,7 +16,7 @@ source.include_exts = py,png,jpg,kv,atlas,html,js,css
 
 # (list) Application requirements
 # Since it's a web-based app, we mainly need python3 and kivy
-requirements = python3,kivy
+requirements = python3,kivy,android,pyjnius
 
 # (str) Custom source folder for requirements
 # (list) Permissions
