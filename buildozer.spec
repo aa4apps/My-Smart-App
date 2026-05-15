@@ -16,11 +16,12 @@ source.include_exts = py,png,jpg,kv,atlas,html,js,css
 
 # (list) Application requirements
 # Since it's a web-based app, we mainly need python3 and kivy
-requirements = python3,kivy,android,pyjnius
+requirements = python3,kivy,android,pyjnius,sqlite3
 
 # (str) Custom source folder for requirements
 # (list) Permissions
-android.permissions = INTERNET, ACCESS_NETWORK_STATE
+android.permissions = android.permissions = INTERNET, ACCESS_NETWORK_STATE, READ_EXTERNAL_STORAGE, WRITE_EXTERNAL_STORAGE
+android.archs = arm64-v8a, armeabi-v7a
 
 # (int) Android API to use
 android.api = 31
